@@ -8,30 +8,31 @@ namespace AgarPlugin
 {
     public class AgarPlayerManager : Plugin
     {
-        Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
-
-        public const float MAP_WIDTH = 20;
+        public const float MAP_WIDTH = 50;
+        private Random random;
         public override bool ThreadSafe => false;
-
         public override Version Version => new Version(0, 1, 0);
+
+        Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
 
         public AgarPlayerManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
+            this.random = new Random();
+
             ClientManager.ClientConnected += ClientConnected;
             ClientManager.ClientDisconnected += ClientDisconnected;
         }
 
         private void ClientConnected(object sender, ClientConnectedEventArgs e)
         {
-            Random r = new Random();
             Player newPlayer = new Player(
                 e.Client.ID,
-                (float)r.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
-                (float)r.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
-                1f,
-                (byte)r.Next(0, 200),
-                (byte)r.Next(0, 200),
-                (byte)r.Next(0, 200)
+                (float)this.random.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
+                (float)this.random.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
+                0.2f,
+                (byte)this.random.Next(0, 200),
+                (byte)this.random.Next(0, 200),
+                (byte)this.random.Next(0, 200)
             );
 
             using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
@@ -111,6 +112,28 @@ namespace AgarPlugin
                         player.X = newX;
                         player.Y = newY;
 
+                        AgarFoodManager foodManager = PluginManager.GetPluginByType<AgarFoodManager>();
+
+                        foreach (FoodItem food in foodManager.foodItems)
+                        {
+                            if (Math.Pow(player.X - food.X, 2) + Math.Pow(player.Y - food.Y, 2) < Math.Pow(player.Radius, 2))
+                            {
+                                player.Radius += food.Radius;
+                                this.SendRadiusUpdate(player);
+                                foodManager.Eat(food);
+                            }
+                        }
+
+                        foreach (Player otherPlayer in players.Values.Where(x => x.Alive))
+                        {
+                            if (otherPlayer != player && Math.Pow(player.X - otherPlayer.X, 2) + Math.Pow(player.Y - otherPlayer.Y, 2) < Math.Pow(player.Radius, 2))
+                            {
+                                player.Radius += otherPlayer.Radius;
+                                this.SendRadiusUpdate(player);
+                                this.Kill(otherPlayer);
+                            }
+                        }
+
                         using (DarkRiftWriter writer = DarkRiftWriter.Create())
                         {
                             writer.Write(player.ID);
@@ -125,6 +148,44 @@ namespace AgarPlugin
                         }
                     }
                 }
+            }
+        }
+
+        private void SendRadiusUpdate(Player player)
+        {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create())
+            {
+                writer.Write(player.ID);
+                writer.Write(player.Radius);
+
+                using (Message message = Message.Create(Tags.SetRadiusTag, writer))
+                {
+                    foreach (IClient client in ClientManager.GetAllClients())
+                    {
+                        client.SendMessage(message, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+
+        private void Kill(Player player)
+        {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create())
+            {
+                writer.Write(player.ID);
+
+                using (Message message = Message.Create(Tags.KillPlayerTag, writer))
+                {
+                    foreach (IClient client in ClientManager.GetAllClients())
+                    {
+                        client.SendMessage(message, SendMode.Reliable);
+
+                        if(this.players[client].ID == player.ID)
+                        {
+                            this.players[client].Alive = false;
+                        }
+                    }
+                }            
             }
         }
     }

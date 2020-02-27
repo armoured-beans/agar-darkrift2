@@ -8,9 +8,9 @@ public class NetworkPlayerManager : MonoBehaviour
 {
     [SerializeField]
     [Tooltip("The DarkRift client to communicate on.")]
-    UnityClient client;
+    public UnityClient client;
 
-    Dictionary<ushort, AgarObject> networkPlayers = new Dictionary<ushort, AgarObject>();
+    private Dictionary<ushort, AgarObject> networkPlayers = new Dictionary<ushort, AgarObject>();
 
     private void Awake()
     {
@@ -28,16 +28,38 @@ public class NetworkPlayerManager : MonoBehaviour
         {
             if (message.Tag == Tags.MovePlayerTag)
             {
-                using (DarkRiftReader reader = message.GetReader())
-                {
-                    ushort id = reader.ReadUInt16();
-                    Vector3 newPosition = new Vector3(reader.ReadSingle(), reader.ReadSingle(), 0);
+                this.MovePlayer(message);
+            }
+            else if (message.Tag == Tags.SetRadiusTag)
+            {
+                this.SetRadius(message);
+            }
+        }
+    }
 
-                    if (this.networkPlayers.ContainsKey(id))
-                    {
-                        this.networkPlayers[id].SetMovePosition(newPosition);
-                    }
-                }
+    private void MovePlayer(Message message)
+    {
+        using (DarkRiftReader reader = message.GetReader())
+        {
+            ushort id = reader.ReadUInt16();
+            Vector3 newPosition = new Vector3(reader.ReadSingle(), reader.ReadSingle(), 0);
+
+            if (this.networkPlayers.ContainsKey(id))
+            {
+                this.networkPlayers[id].SetMovePosition(newPosition);
+            }
+        }
+    }
+
+    private void SetRadius(Message message)
+    {
+        using (DarkRiftReader reader = message.GetReader())
+        {
+            ushort id = reader.ReadUInt16();
+
+            if (this.networkPlayers.ContainsKey(id))
+            {
+                this.networkPlayers[id].SetRadius(reader.ReadSingle());
             }
         }
     }

@@ -9,6 +9,7 @@
         public byte ColorR { get; set; }
         public byte ColorG { get; set; }
         public byte ColorB { get; set; }
+        public bool Alive { get; set; }
 
         public Player(ushort ID, float x, float y, float radius, byte colorR, byte colorG, byte colorB)
         {
@@ -19,6 +20,7 @@
             this.ColorR = colorR;
             this.ColorG = colorG;
             this.ColorB = colorB;
+            this.Alive = true;
         }
     }
 }
